@@ -954,6 +954,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/redactionprocessor v0.161.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/nginxreceiver v0.161.0
 	github.com/spf13/viper v1.21.0
+	github.com/spiffe/go-spiffe/v2 v2.8.1
 	github.com/vektah/gqlparser/v2 v2.5.36
 	github.com/zricethezav/gitleaks/v8 v8.30.1
 )
@@ -1075,7 +1076,6 @@ require (
 	github.com/sosodev/duration v1.4.0 // indirect
 	github.com/sourcegraph/conc v0.3.1-0.20240121214520-5f936abd7ae8 // indirect
 	github.com/spf13/afero v1.15.0 // indirect
-	github.com/spiffe/go-spiffe/v2 v2.8.1 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/tetratelabs/wazero v1.12.0 // indirect
 	github.com/twmb/franz-go/plugin/kslog v1.0.0 // indirect
