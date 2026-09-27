@@ -20,6 +20,11 @@ var ErrNoSVID = errors.New("no X509-SVID received from the Workload API yet")
 
 // Source holds the latest X.509 context from the Workload API and is exported to Alloy as a capsule.
 type Source struct {
+	// Alloy's decoder copies capsules whose type contains an interface, so all state lives behind this pointer.
+	st *sourceState
+}
+
+type sourceState struct {
 	mut       sync.RWMutex
 	svid      *x509svid.SVID
 	bundles   *x509bundle.Set
@@ -33,35 +38,35 @@ var (
 	_ workloadapi.X509ContextWatcher = (*Source)(nil)
 )
 
-func NewSource() *Source { return &Source{} }
+func NewSource() *Source { return &Source{st: &sourceState{}} }
 
 func (*Source) AlloyCapsule() {}
 
 func (s *Source) GetX509SVID() (*x509svid.SVID, error) {
-	s.mut.RLock()
-	defer s.mut.RUnlock()
-	if s.svid == nil {
+	s.st.mut.RLock()
+	defer s.st.mut.RUnlock()
+	if s.st.svid == nil {
 		return nil, ErrNoSVID
 	}
-	return s.svid, nil
+	return s.st.svid, nil
 }
 
 func (s *Source) GetX509BundleForTrustDomain(td spiffeid.TrustDomain) (*x509bundle.Bundle, error) {
-	s.mut.RLock()
-	defer s.mut.RUnlock()
-	if s.bundles == nil {
+	s.st.mut.RLock()
+	defer s.st.mut.RUnlock()
+	if s.st.bundles == nil {
 		return nil, ErrNoSVID
 	}
-	return s.bundles.GetX509BundleForTrustDomain(td)
+	return s.st.bundles.GetX509BundleForTrustDomain(td)
 }
 
 func (s *Source) OnX509ContextUpdate(c *workloadapi.X509Context) {
-	s.mut.Lock()
-	defer s.mut.Unlock()
-	s.svid = c.DefaultSVID()
-	s.bundles = c.Bundles
-	s.updatedAt = time.Now()
-	s.watchErr = nil
+	s.st.mut.Lock()
+	defer s.st.mut.Unlock()
+	s.st.svid = c.DefaultSVID()
+	s.st.bundles = c.Bundles
+	s.st.updatedAt = time.Now()
+	s.st.watchErr = nil
 }
 
 func (s *Source) OnX509ContextWatchError(err error) {
@@ -69,9 +74,9 @@ func (s *Source) OnX509ContextWatchError(err error) {
 	if errors.Is(err, context.Canceled) || status.Code(err) == codes.Canceled {
 		return
 	}
-	s.mut.Lock()
-	defer s.mut.Unlock()
-	s.watchErr = err
+	s.st.mut.Lock()
+	defer s.st.mut.Unlock()
+	s.st.watchErr = err
 }
 
 type Status struct {
@@ -84,16 +89,16 @@ type Status struct {
 }
 
 func (s *Source) Status() Status {
-	s.mut.RLock()
-	defer s.mut.RUnlock()
-	st := Status{UpdatedAt: s.updatedAt, WatchErr: s.watchErr}
-	if s.svid == nil {
+	s.st.mut.RLock()
+	defer s.st.mut.RUnlock()
+	st := Status{UpdatedAt: s.st.updatedAt, WatchErr: s.st.watchErr}
+	if s.st.svid == nil {
 		return st
 	}
 	st.Ready = true
-	st.SPIFFEID = s.svid.ID.String()
-	st.NotAfter = s.svid.Certificates[0].NotAfter
-	for _, b := range s.bundles.Bundles() {
+	st.SPIFFEID = s.st.svid.ID.String()
+	st.NotAfter = s.st.svid.Certificates[0].NotAfter
+	for _, b := range s.st.bundles.Bundles() {
 		st.TrustDomains = append(st.TrustDomains, b.TrustDomain().String())
 	}
 	sort.Strings(st.TrustDomains)
