@@ -44,7 +44,7 @@ The following field is exported and can be referenced by other components:
 
 ## Component health
 
-`spiffe.x509_source` is unhealthy until it receives its first X.509-SVID, and while its connection to the Workload API is failing.
+`spiffe.x509_source` is unhealthy until it receives its first X.509-SVID, while its connection to the Workload API is failing, and while its current X.509-SVID has expired.
 While the connection is failing it keeps serving the last SVID it received.
 
 ## Debug information

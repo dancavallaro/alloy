@@ -57,6 +57,17 @@ func NewCA(t testing.TB, trustDomain string) *CA {
 // SVID issues a leaf X509-SVID; with no dnsNames the certificate carries only the URI SAN.
 func (ca *CA) SVID(t testing.TB, id string, dnsNames ...string) *x509svid.SVID {
 	t.Helper()
+	return ca.svid(t, id, time.Now().Add(time.Hour), dnsNames)
+}
+
+// ExpiredSVID issues a leaf X509-SVID whose NotAfter has passed.
+func (ca *CA) ExpiredSVID(t testing.TB, id string) *x509svid.SVID {
+	t.Helper()
+	return ca.svid(t, id, time.Now().Add(-time.Second), nil)
+}
+
+func (ca *CA) svid(t testing.TB, id string, notAfter time.Time, dnsNames []string) *x509svid.SVID {
+	t.Helper()
 	spiffeID := spiffeid.RequireFromString(id)
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
@@ -67,7 +78,7 @@ func (ca *CA) SVID(t testing.TB, id string, dnsNames ...string) *x509svid.SVID {
 		URIs:                  []*url.URL{spiffeID.URL()},
 		DNSNames:              dnsNames,
 		NotBefore:             time.Now().Add(-time.Minute),
-		NotAfter:              time.Now().Add(time.Hour),
+		NotAfter:              notAfter,
 		BasicConstraintsValid: true,
 		KeyUsage:              x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},

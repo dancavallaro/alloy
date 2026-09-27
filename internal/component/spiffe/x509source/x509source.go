@@ -154,6 +154,12 @@ func (c *Component) CurrentHealth() component.Health {
 			msg += ": " + st.WatchErr.Error()
 		}
 		return component.Health{Health: component.HealthTypeUnhealthy, Message: msg, UpdateTime: time.Now()}
+	case time.Now().After(st.NotAfter):
+		return component.Health{
+			Health:     component.HealthTypeUnhealthy,
+			Message:    fmt.Sprintf("X509-SVID %s expired at %s", st.SPIFFEID, st.NotAfter.Format(time.RFC3339)),
+			UpdateTime: time.Now(),
+		}
 	case st.WatchErr != nil:
 		return component.Health{
 			Health:     component.HealthTypeUnhealthy,

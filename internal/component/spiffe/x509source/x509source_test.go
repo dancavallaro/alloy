@@ -108,3 +108,15 @@ func TestValidate(t *testing.T) {
 	t.Setenv("SPIFFE_ENDPOINT_SOCKET", "unix:///run/spire/agent.sock")
 	require.NoError(t, (&x509source.Arguments{}).Validate())
 }
+
+func TestUnhealthyWhenSVIDExpired(t *testing.T) {
+	ca := spiffetest.NewCA(t, "example.org")
+	api := spiffetest.NewWorkloadAPI(t)
+	api.SetX509SVID(t, ca, ca.ExpiredSVID(t, "spiffe://example.org/alloy"))
+
+	tc, src := run(t, x509source.Arguments{Address: api.Addr()})
+	require.Eventually(t, func() bool { return currentID(src) == "spiffe://example.org/alloy" }, 10*time.Second, 50*time.Millisecond)
+	h := health(t, tc)
+	require.Equal(t, component.HealthTypeUnhealthy, h.Health)
+	require.Contains(t, h.Message, "expired")
+}
