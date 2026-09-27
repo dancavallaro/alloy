@@ -16,3 +16,4 @@ It authorizes the server by SPIFFE ID, so the server certificate doesn't need a 
 
 The endpoint `url` must use `https`.
 You can't combine the `spiffe` block with the `ca_*`, `cert_*`, `key_*`, or `insecure_skip_verify` arguments of `tls_config`.
+The `server_name` and `min_version` arguments of `tls_config` still apply.

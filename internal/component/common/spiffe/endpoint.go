@@ -51,12 +51,18 @@ func (c *EndpointConfig) HTTPClientOptions() []promconfig.HTTPClientOption {
 	return []promconfig.HTTPClientOption{promconfig.WithNewTLSConfigFunc(c.newTLSConfig)}
 }
 
-func (c *EndpointConfig) newTLSConfig(context.Context, *promconfig.TLSConfig, ...promconfig.TLSConfigOption) (*tls.Config, error) {
+func (c *EndpointConfig) newTLSConfig(ctx context.Context, cfg *promconfig.TLSConfig, opts ...promconfig.TLSConfigOption) (*tls.Config, error) {
 	ids, err := c.serverIDs()
 	if err != nil {
 		return nil, err
 	}
-	return tlsconfig.MTLSClientConfig(c.Source, c.Source, tlsconfig.AuthorizeOneOf(ids...)), nil
+	// Built from tls_config so server_name and min_version still apply; the hook replaces everything auth-related.
+	base, err := promconfig.NewTLSConfigWithContext(ctx, cfg, opts...)
+	if err != nil {
+		return nil, err
+	}
+	tlsconfig.HookMTLSClientConfig(base, c.Source, c.Source, tlsconfig.AuthorizeOneOf(ids...))
+	return base, nil
 }
 
 // ValidateEndpoint rejects endpoint settings that would bypass or conflict with SPIFFE mTLS.

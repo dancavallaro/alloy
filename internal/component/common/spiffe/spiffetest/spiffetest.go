@@ -95,7 +95,7 @@ func (ca *CA) X509Context(svid *x509svid.SVID) *workloadapi.X509Context {
 }
 
 // NewMTLSServer starts an HTTPS server presenting svid and requiring a client SVID verifiable by trusted.
-func NewMTLSServer(t testing.TB, trusted x509bundle.Source, svid *x509svid.SVID, h http.Handler) *httptest.Server {
+func NewMTLSServer(t testing.TB, trusted x509bundle.Source, svid *x509svid.SVID, h http.Handler, opts ...func(*tls.Config)) *httptest.Server {
 	t.Helper()
 	cfg := tlsconfig.MTLSServerConfig(svid, trusted, tlsconfig.AuthorizeAny())
 	// StartTLS adds httptest's own cert when Certificates is empty, and IP-addressed clients send no SNI to trigger GetCertificate.
@@ -104,6 +104,9 @@ func NewMTLSServer(t testing.TB, trusted x509bundle.Source, svid *x509svid.SVID,
 		PrivateKey:  svid.PrivateKey,
 		Leaf:        svid.Certificates[0],
 	}}
+	for _, opt := range opts {
+		opt(cfg)
+	}
 	srv := httptest.NewUnstartedServer(h)
 	srv.TLS = cfg
 	srv.StartTLS()

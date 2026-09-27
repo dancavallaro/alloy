@@ -1,6 +1,7 @@
 package spiffe_test
 
 import (
+	"crypto/tls"
 	"io"
 	"net/http"
 	"testing"
@@ -148,4 +149,39 @@ func TestValidateEndpoint(t *testing.T) {
 func TestNilEndpointConfigHasNoOptions(t *testing.T) {
 	var cfg *spiffe.EndpointConfig
 	require.Nil(t, cfg.HTTPClientOptions())
+}
+
+func newClientWithTLS(t *testing.T, cfg *spiffe.EndpointConfig, tlsCfg promconfig.TLSConfig) *http.Client {
+	t.Helper()
+	c, err := promconfig.NewClientFromConfig(promconfig.HTTPClientConfig{TLSConfig: tlsCfg}, "test", cfg.HTTPClientOptions()...)
+	require.NoError(t, err)
+	return c
+}
+
+func TestMinVersionEnforced(t *testing.T) {
+	ca := spiffetest.NewCA(t, "example.org")
+	srv := spiffetest.NewMTLSServer(t, ca.Bundle(), ca.SVID(t, serverID), spiffetest.EchoClientID(),
+		func(c *tls.Config) { c.MaxVersion = tls.VersionTLS12 })
+	src := spiffe.NewSource()
+	src.OnX509ContextUpdate(ca.X509Context(ca.SVID(t, clientID)))
+	cfg := &spiffe.EndpointConfig{Source: src, ServerIDs: []string{serverID}}
+
+	_, err := get(newClientWithTLS(t, cfg, promconfig.TLSConfig{}), srv.URL)
+	require.NoError(t, err)
+
+	_, err = get(newClientWithTLS(t, cfg, promconfig.TLSConfig{MinVersion: promconfig.TLSVersion(tls.VersionTLS13)}), srv.URL)
+	require.ErrorContains(t, err, "protocol version")
+}
+
+func TestServerNameSentAsSNI(t *testing.T) {
+	ca := spiffetest.NewCA(t, "example.org")
+	srv := spiffetest.NewMTLSServer(t, ca.Bundle(), ca.SVID(t, serverID),
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(r.TLS.ServerName)) }))
+	src := spiffe.NewSource()
+	src.OnX509ContextUpdate(ca.X509Context(ca.SVID(t, clientID)))
+	cfg := &spiffe.EndpointConfig{Source: src, ServerIDs: []string{serverID}}
+
+	body, err := get(newClientWithTLS(t, cfg, promconfig.TLSConfig{ServerName: "mimir.example"}), srv.URL)
+	require.NoError(t, err)
+	require.Equal(t, "mimir.example", body)
 }
