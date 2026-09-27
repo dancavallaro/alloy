@@ -63,6 +63,7 @@ You can use the following blocks with `prometheus.remote_write`:
 | `endpoint` > `oauth2` > [`tls_config`][tls_config]                | Configure TLS settings for connecting to the endpoint.                     | no       |
 | `endpoint` > [`queue_config`][queue_config]                       | Configuration for how metrics are batched before sending.                  | no       |
 | `endpoint` > [`sigv4`][sigv4]                                     | Configure AWS Signature Verification 4 for authenticating to the endpoint. | no       |
+| `endpoint` > [`spiffe`][spiffe]                                   | Authenticate and authorize the endpoint with SPIFFE mTLS.                  | no       |
 | `endpoint` > [`tls_config`][tls_config]                           | Configure TLS settings for connecting to the endpoint.                     | no       |
 | `endpoint` > [`write_relabel_config`][write_relabel_config]       | Configuration for `write_relabel_config`.                                  | no       |
 | [`wal`][wal]                                                      | Configuration for the component's WAL.                                     | no       |
@@ -79,6 +80,7 @@ You can use the following blocks with `prometheus.remote_write`:
 [queue_config]: #queue_config
 [sdk]: #sdk
 [sigv4]: #sigv4
+[spiffe]: #spiffe
 [tls_config]: #tls_config
 [wal]: #wal
 [workload_identity]: #workload_identity
@@ -192,6 +194,10 @@ You must configure exactly one of the [`managed_identity`](#managed_identity), [
 ### `tls_config`
 
 {{< docs/shared lookup="reference/components/tls-config-block.md" source="alloy" version="<ALLOY_VERSION>" >}}
+
+### `spiffe`
+
+{{< docs/shared lookup="reference/components/spiffe-block.md" source="alloy" version="<ALLOY_VERSION>" >}}
 
 ### `queue_config`
 

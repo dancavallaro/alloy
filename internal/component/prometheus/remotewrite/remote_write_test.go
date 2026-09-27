@@ -25,6 +25,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/alloy/internal/component/common/spiffe"
+	"github.com/grafana/alloy/internal/component/common/spiffe/spiffetest"
 	"github.com/grafana/alloy/internal/component/prometheus/remotewrite"
 	"github.com/grafana/alloy/internal/runtime/componenttest"
 	"github.com/grafana/alloy/internal/util"
@@ -674,4 +676,45 @@ func testArgs(t *testing.T, cfg string) remotewrite.Arguments {
 // normalizeLineEndings will replace '\r\n' with '\n'.
 func normalizeLineEndings(data []byte) []byte {
 	return bytes.ReplaceAll(data, []byte{'\r', '\n'}, []byte{'\n'})
+}
+
+func TestSendOverSPIFFE(t *testing.T) {
+	ca := spiffetest.NewCA(t, "example.org")
+	src := spiffe.NewSource()
+	src.OnX509ContextUpdate(ca.X509Context(ca.SVID(t, "spiffe://example.org/alloy")))
+
+	clientIDs := make(chan string, 16)
+	srv := spiffetest.NewMTLSServer(t, ca.Bundle(), ca.SVID(t, "spiffe://example.org/mimir"),
+		http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+			clientIDs <- r.TLS.PeerCertificates[0].URIs[0].String()
+		}))
+
+	args := testArgs(t, fmt.Sprintf(`
+		endpoint {
+			url = "%s/api/v1/write"
+			queue_config {
+				max_samples_per_send = 1
+				batch_send_deadline  = "100ms"
+			}
+		}
+	`, srv.URL))
+	args.Endpoints[0].SPIFFE = &spiffe.EndpointConfig{Source: src, ServerIDs: []string{"spiffe://example.org/mimir"}}
+
+	tc, err := componenttest.NewControllerFromID(util.TestLogger(t), "prometheus.remote_write")
+	require.NoError(t, err)
+	go func() { require.NoError(t, tc.Run(componenttest.TestContext(t), args)) }()
+	require.NoError(t, tc.WaitRunning(5*time.Second))
+
+	sendMetrics(t, tc, []Appendable{&Sample{
+		Labels: labels.FromStrings("foo", "bar"),
+		Time:   time.Now().Add(time.Hour).UnixMilli(),
+		Value:  1,
+	}})
+
+	select {
+	case id := <-clientIDs:
+		require.Equal(t, "spiffe://example.org/alloy", id)
+	case <-time.After(60 * time.Second):
+		require.FailNow(t, "timed out waiting for a remote_write request")
+	}
 }

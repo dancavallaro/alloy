@@ -8,6 +8,7 @@ import (
 
 	types "github.com/grafana/alloy/internal/component/common/config"
 	alloy_relabel "github.com/grafana/alloy/internal/component/common/relabel"
+	"github.com/grafana/alloy/internal/component/common/spiffe"
 	"github.com/grafana/alloy/syntax/alloytypes"
 
 	"github.com/google/uuid"
@@ -90,6 +91,7 @@ type EndpointOptions struct {
 	AzureAD              *AzureADConfig          `alloy:"azuread,block,optional"`
 	GoogleIAM            *GoogleIAMConfig        `alloy:"google_iam,block,optional"`
 	RoundRobinDNS        bool                    `alloy:"round_robin_dns,attr,optional"`
+	SPIFFE               *spiffe.EndpointConfig  `alloy:"spiffe,block,optional"`
 }
 
 // SetToDefault implements syntax.Defaulter.
@@ -136,6 +138,16 @@ func (r *EndpointOptions) Validate() error {
 	}
 	if authMethods > 1 {
 		return errTooManyAuth
+	}
+
+	if r.SPIFFE != nil {
+		var tlsCfg *types.TLSConfig
+		if r.HTTPClientConfig != nil {
+			tlsCfg = &r.HTTPClientConfig.TLSConfig
+		}
+		if err := spiffe.ValidateEndpoint(r.URL, tlsCfg); err != nil {
+			return err
+		}
 	}
 
 	if r.WriteRelabelConfigs != nil {
@@ -271,6 +283,7 @@ func convertConfigs(cfg Arguments) (*config.Config, error) {
 			AzureADConfig:        rw.AzureAD.toPrometheusType(),
 			GoogleIAMConfig:      rw.GoogleIAM.toPrometheusType(),
 			RoundRobinDNS:        rw.RoundRobinDNS,
+			HTTPClientOptions:    rw.SPIFFE.HTTPClientOptions(),
 		})
 	}
 

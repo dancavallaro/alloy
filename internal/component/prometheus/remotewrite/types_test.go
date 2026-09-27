@@ -16,6 +16,7 @@ import (
 	"github.com/prometheus/sigv4"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/alloy/internal/component/common/spiffe"
 	"github.com/grafana/alloy/syntax"
 )
 
@@ -422,4 +423,21 @@ func TestAlloyConfig(t *testing.T) {
 			require.Equal(t, tc.expectedCfg, promCfg)
 		})
 	}
+}
+
+func TestSPIFFEEndpointValidation(t *testing.T) {
+	src := spiffe.NewSource()
+	ep := EndpointOptions{}
+	ep.SetToDefault()
+	ep.SPIFFE = &spiffe.EndpointConfig{Source: src, ServerIDs: []string{"spiffe://example.org/mimir"}}
+
+	ep.URL = "https://mimir.example/api/v1/push"
+	require.NoError(t, ep.Validate())
+
+	ep.URL = "http://mimir.example/api/v1/push"
+	require.ErrorContains(t, ep.Validate(), "https")
+
+	ep.URL = "https://mimir.example/api/v1/push"
+	ep.HTTPClientConfig.TLSConfig.CertFile = "/cert.pem"
+	require.ErrorContains(t, ep.Validate(), "tls_config")
 }
