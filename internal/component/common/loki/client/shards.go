@@ -215,7 +215,7 @@ func newShards(metrics *metrics, logger *slog.Logger, tracker sentDataTracker, c
 		return nil, err
 	}
 
-	client, err := config.NewClientFromConfig(cfg.Client, useragent.ProductName)
+	client, err := config.NewClientFromConfig(cfg.Client, useragent.ProductName, cfg.HTTPClientOptions...)
 	if err != nil {
 		return nil, err
 	}

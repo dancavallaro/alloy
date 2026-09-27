@@ -12,6 +12,7 @@ import (
 	"github.com/grafana/dskit/flagext"
 
 	types "github.com/grafana/alloy/internal/component/common/config"
+	"github.com/grafana/alloy/internal/component/common/spiffe"
 )
 
 // EndpointOptions describes an individual location to send logs to.
@@ -29,6 +30,7 @@ type EndpointOptions struct {
 	RetryOnHTTP429    bool                    `alloy:"retry_on_http_429,attr,optional"`
 	HTTPClientConfig  *types.HTTPClientConfig `alloy:",squash"`
 	QueueConfig       QueueConfig             `alloy:"queue_config,block,optional"`
+	SPIFFE            *spiffe.EndpointConfig  `alloy:"spiffe,block,optional"`
 }
 
 // GetDefaultEndpointOptions defines the default settings for sending logs to a
@@ -65,7 +67,19 @@ func (r *EndpointOptions) Validate() error {
 
 	// We must explicitly Validate because HTTPClientConfig is squashed and it won't run otherwise
 	if r.HTTPClientConfig != nil {
-		return r.HTTPClientConfig.Validate()
+		if err := r.HTTPClientConfig.Validate(); err != nil {
+			return err
+		}
+	}
+
+	if r.SPIFFE != nil {
+		var tlsCfg *types.TLSConfig
+		if r.HTTPClientConfig != nil {
+			tlsCfg = &r.HTTPClientConfig.TLSConfig
+		}
+		if err := spiffe.ValidateEndpoint(r.URL, tlsCfg); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -96,12 +110,13 @@ func (args Arguments) convertEndpointConfigs() []client.Config {
 	for _, cfg := range args.Endpoints {
 		url, _ := url.Parse(cfg.URL)
 		cc := client.Config{
-			Name:      cfg.Name,
-			URL:       flagext.URLValue{URL: url},
-			Headers:   cfg.Headers,
-			BatchWait: cfg.BatchWait,
-			BatchSize: int(cfg.BatchSize),
-			Client:    *cfg.HTTPClientConfig.Convert(),
+			Name:              cfg.Name,
+			URL:               flagext.URLValue{URL: url},
+			Headers:           cfg.Headers,
+			BatchWait:         cfg.BatchWait,
+			BatchSize:         int(cfg.BatchSize),
+			Client:            *cfg.HTTPClientConfig.Convert(),
+			HTTPClientOptions: cfg.SPIFFE.HTTPClientOptions(),
 			BackoffConfig: backoff.Config{
 				MinBackoff: cfg.MinBackoff,
 				MaxBackoff: cfg.MaxBackoff,

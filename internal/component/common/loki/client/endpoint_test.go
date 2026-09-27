@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"runtime"
 	"strings"
 	"testing"
@@ -633,4 +634,18 @@ func histogramSumAndCount(t *testing.T, reg *prometheus.Registry, name string) (
 
 	t.Fatalf("metric %s not found", name)
 	return 0, 0
+}
+
+func TestEndpointNameIgnoresHTTPClientOptions(t *testing.T) {
+	u, err := url.Parse("https://loki.example/loki/api/v1/push")
+	require.NoError(t, err)
+	base := Config{URL: flagext.URLValue{URL: u}}
+
+	a := base
+	a.HTTPClientOptions = []config.HTTPClientOption{config.WithUserAgent("a")}
+	b := base
+	b.HTTPClientOptions = []config.HTTPClientOption{config.WithUserAgent("a")}
+
+	require.Equal(t, getEndpointName(base), getEndpointName(a))
+	require.Equal(t, getEndpointName(a), getEndpointName(b))
 }

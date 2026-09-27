@@ -18,6 +18,8 @@ import (
 	"github.com/grafana/alloy/internal/component"
 	"github.com/grafana/alloy/internal/component/common/loki"
 	"github.com/grafana/alloy/internal/component/common/loki/wal"
+	"github.com/grafana/alloy/internal/component/common/spiffe"
+	"github.com/grafana/alloy/internal/component/common/spiffe/spiffetest"
 	"github.com/grafana/alloy/internal/component/discovery"
 	lsf "github.com/grafana/alloy/internal/component/loki/source/file"
 	"github.com/grafana/alloy/internal/featuregate"
@@ -583,4 +585,57 @@ func blockedEndpointArgs(t *testing.T, url string, walEnabled bool) Arguments {
 	var args Arguments
 	require.NoError(t, syntax.Unmarshal([]byte(cfg), &args))
 	return args
+}
+
+func TestWriteOverSPIFFE(t *testing.T) {
+	ca := spiffetest.NewCA(t, "example.org")
+	src := spiffe.NewSource()
+	src.OnX509ContextUpdate(ca.X509Context(ca.SVID(t, "spiffe://example.org/alloy")))
+
+	clientIDs := make(chan string, 16)
+	srv := spiffetest.NewMTLSServer(t, ca.Bundle(), ca.SVID(t, "spiffe://example.org/loki"),
+		http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+			clientIDs <- r.TLS.PeerCertificates[0].URIs[0].String()
+		}))
+
+	var args Arguments
+	require.NoError(t, syntax.Unmarshal([]byte(fmt.Sprintf(`
+		endpoint {
+			url        = "%s/loki/api/v1/push"
+			batch_wait = "10ms"
+		}
+	`, srv.URL)), &args))
+	args.Endpoints[0].SPIFFE = &spiffe.EndpointConfig{Source: src, ServerIDs: []string{"spiffe://example.org/loki"}}
+
+	tc, err := componenttest.NewControllerFromID(util.TestLogger(t), "loki.write")
+	require.NoError(t, err)
+	go func() { require.NoError(t, tc.Run(componenttest.TestContext(t), args)) }()
+	require.NoError(t, tc.WaitExports(time.Second))
+
+	tc.Exports().(Exports).Receiver.Chan() <- loki.Entry{
+		Labels: model.LabelSet{"foo": "bar"},
+		Entry:  push.Entry{Timestamp: time.Now(), Line: "hello"},
+	}
+
+	select {
+	case id := <-clientIDs:
+		require.Equal(t, "spiffe://example.org/alloy", id)
+	case <-time.After(30 * time.Second):
+		require.FailNow(t, "timed out waiting for a push request")
+	}
+}
+
+func TestSPIFFEEndpointValidation(t *testing.T) {
+	ep := GetDefaultEndpointOptions()
+	ep.SPIFFE = &spiffe.EndpointConfig{Source: spiffe.NewSource(), ServerIDs: []string{"spiffe://example.org/loki"}}
+
+	ep.URL = "https://loki.example/loki/api/v1/push"
+	require.NoError(t, ep.Validate())
+
+	ep.URL = "http://loki.example/loki/api/v1/push"
+	require.ErrorContains(t, ep.Validate(), "https")
+
+	ep.URL = "https://loki.example/loki/api/v1/push"
+	ep.HTTPClientConfig.TLSConfig.KeyFile = "/key.pem"
+	require.ErrorContains(t, ep.Validate(), "tls_config")
 }

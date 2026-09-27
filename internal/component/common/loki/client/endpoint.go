@@ -86,6 +86,8 @@ func getEndpointName(cfg Config) string {
 		return cfg.Name
 	}
 
+	// Func values print as addresses, which change on every config load.
+	cfg.HTTPClientOptions = nil
 	h := sha256.New()
 	_, _ = fmt.Fprintf(h, "%v", cfg)
 	return fmt.Sprintf("%x", h.Sum(nil))[:6]

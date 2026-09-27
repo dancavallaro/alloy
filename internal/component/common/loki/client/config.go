@@ -15,8 +15,10 @@ type Config struct {
 	BatchWait time.Duration
 	BatchSize int
 
-	Client  config.HTTPClientConfig
-	Headers map[string]string
+	Client config.HTTPClientConfig
+	// HTTPClientOptions are extra options for the endpoint's HTTP client, such as SPIFFE mTLS.
+	HTTPClientOptions []config.HTTPClientOption
+	Headers           map[string]string
 
 	BackoffConfig backoff.Config
 	Timeout       time.Duration

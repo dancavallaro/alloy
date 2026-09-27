@@ -49,6 +49,7 @@ You can use the following blocks with `loki.write`:
 | `endpoint` > [`oauth2`][oauth2]                    | Configure OAuth 2.0 for authenticating to the endpoint.    | no       |
 | `endpoint` > `oauth2` > [`tls_config`][tls_config] | Configure TLS settings for connecting to the endpoint.     | no       |
 | `endpoint` > [`queue_config`][queue_config]        | Configure the queue used for the endpoint.                     | no       |
+| `endpoint` > [`spiffe`][spiffe]                    | Authenticate and authorize the endpoint with SPIFFE mTLS.  | no       |
 | `endpoint` > [`tls_config`][tls_config]            | Configure TLS settings for connecting to the endpoint.     | no       |
 | [`wal`][wal]                                       | Write-ahead log configuration.                             | no       |
 
@@ -57,6 +58,7 @@ You can use the following blocks with `loki.write`:
 [endpoint]: #endpoint
 [oauth2]: #oauth2
 [queue_config]: #queue_config
+[spiffe]: #spiffe
 [tls_config]: #tls_config
 [wal]: #wal
 
@@ -147,6 +149,10 @@ Each shard has a queue of batches it keeps in memory, controlled with the `capac
 
 Queue size is calculated using `batch_size` and `capacity` for each shard. So if `batch_size` is 1MiB and `capacity` is 10MiB each shard would be able to queue up 10 batches.
 The maximum amount of memory required for all configured shards can be calculated using `capacity` * `min_shards`. 
+
+### `spiffe`
+
+{{< docs/shared lookup="reference/components/spiffe-block.md" source="alloy" version="<ALLOY_VERSION>" >}}
 
 ### `tls_config`
 
